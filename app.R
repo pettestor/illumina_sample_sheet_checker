@@ -22,7 +22,8 @@ ui <- fluidPage(
         tags$li("index2: The second index (barcode), if available."),
         tags$li("lane: The lane number.")
       ),
-      p("The file should be comma-separated and include a header row.")
+      p("The file should be comma-separated and include a header row."),
+      p("Last update to this app: 2024-09-25")
     ),
     
     mainPanel(
