@@ -17,13 +17,13 @@ ui <- fluidPage(
       h4("Instructions:"),
       p("Please ensure your CSV file has the following columns:"),
       tags$ul(
+        tags$li("lane: The lane number."),
         tags$li("sample_name: The name of the sample."),
         tags$li("index: The first index (barcode)."),
-        tags$li("index2: The second index (barcode), if available."),
-        tags$li("lane: The lane number.")
+        tags$li("index2: The second index (barcode), if available.")
       ),
       p("The file should be comma-separated and include a header row."),
-      p("Last update to this app: 2024-09-25")
+      p("Last update to this app: 2024-09-26")
     ),
     
     mainPanel(
@@ -58,11 +58,19 @@ server <- function(input, output) {
     
     if (nrow(duplicates) > 1 && length(unique(duplicates$index_combo)) > 1) {
       return("Duplicate sample names with different indices within the same lane.")
-    } else if (grepl("^[A-Za-z_][A-Za-z0-9_-]*$", sample_name)) {
-      return("OK")
-    } else {
+    } else if (nchar(sample_name) > 64) {
+      return("Sample name exceeds 64 characters.")
+    } else if (!grepl("^[A-Za-z_][A-Za-z0-9_-]*$", sample_name)) {
       return("Sample name does not meet Illumina's requirements.")
+    } else {
+      return("OK")
     }
+  }
+  
+  # Function to check if index only contains A, C, G, T, or N
+  check_valid_index <- function(index) {
+    if (is.na(index)) return(TRUE)
+    return(grepl("^[ACGTN]*$", index))
   }
   
   # Function to find the most similar barcodes and their Hamming distances within the same lane
@@ -73,7 +81,9 @@ server <- function(input, output) {
         Hamming_Distance_index = Inf,
         Most_Similar_Sample_Index2 = NA,
         Hamming_Distance_Index2 = NA,
-        Sample_Name_Check = NA
+        Sample_Name_Check = NA,
+        Index_Valid = NA,
+        Index2_Valid = NA
       )
     
     # Iterate over each row to compare within the same lane
@@ -88,6 +98,10 @@ server <- function(input, output) {
       
       # Update Sample_Name_Check column
       df$Sample_Name_Check[i] <- check_sample_name(sample_name1, barcode1_index, barcode1_index2, lane1, df)
+      
+      # Check if index and index2 contain only valid characters
+      df$Index_Valid[i] <- ifelse(check_valid_index(barcode1_index), "Valid", "Invalid")
+      df$Index2_Valid[i] <- ifelse(check_valid_index(barcode1_index2), "Valid", "Invalid")
       
       for (j in 1:nrow(df)) {
         # Only compare samples within the same lane
@@ -131,7 +145,15 @@ server <- function(input, output) {
       ) %>%
       formatStyle(
         'Sample_Name_Check',
-        backgroundColor = styleEqual(c("OK", "FAIL", "DUPLICATE"), c('green', 'red', 'red'))
+        backgroundColor = styleEqual(c("OK", "Sample name exceeds 64 characters.", "Sample name does not meet Illumina's requirements."), c('green', 'yellow', 'yellow'))
+      ) %>%
+      formatStyle(
+        'Index_Valid',
+        backgroundColor = styleEqual(c("Valid", "Invalid"), c('green', 'red'))
+      ) %>%
+      formatStyle(
+        'Index2_Valid',
+        backgroundColor = styleEqual(c("Valid", "Invalid"), c('green', 'red'))
       )
   })
   
@@ -148,4 +170,3 @@ server <- function(input, output) {
 
 # Run the application 
 shinyApp(ui = ui, server = server)
-
