@@ -37,9 +37,21 @@ server <- function(input, output) {
   # Reactive expression to read the CSV file
   data <- reactive({
     req(input$file)
-    cc <- clean_names(read.csv(input$file$datapath))
-    cc[is.na(cc$lane), "lane"] <- " " # Replace missing lane numbers with a space
     
+    # Läs filen som text för att identifiera separator
+    first_line <- readLines(input$file$datapath, n = 1)
+    separator <- ifelse(grepl(";", first_line), ";", ",")
+    
+    # Läs in filen med rätt separator
+    cc <- clean_names(read.csv(input$file$datapath, sep = separator))
+    
+    # Konvertera semikolon till komma och ge notis om detta
+    if (separator == ";") {
+      showNotification("Semikolon (;) identifierat som separator. Filen konverteras till komma-separerat format.", type = "warning")
+      write.csv(cc, input$file$datapath, row.names = FALSE)
+    }
+    
+    cc[is.na(cc$lane), "lane"] <- " " # Ersätt saknade lane-nummer med en tom sträng
     cc
   })
   
