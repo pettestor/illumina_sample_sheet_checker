@@ -4,6 +4,14 @@ library(dplyr)
 library(stringdist)
 library(DT)
 library(janitor)
+# Load necessary libraries
+library(shiny)
+library(dplyr)
+library(stringdist)
+library(DT)
+library(janitor)
+library(ggplot2)
+library(reshape2)
 
 # Define the UI
 ui <- fluidPage(
@@ -27,7 +35,18 @@ ui <- fluidPage(
     ),
     
     mainPanel(
-      DTOutput("contents")
+      tabsetPanel(
+        tabPanel("Sample Table", 
+                 DTOutput("contents")),
+        
+        tabPanel("Heatmaps",
+                 h4("Index Hamming Distance Heatmap"),
+                 plotOutput("heatmap_index", height = "500px"),
+                 br(),
+                 h4("Index2 Hamming Distance Heatmap"),
+                 plotOutput("heatmap_index2", height = "500px")
+        )
+      )
     )
   )
 )
@@ -38,20 +57,17 @@ server <- function(input, output) {
   data <- reactive({
     req(input$file)
     
-    # Läs filen som text för att identifiera separator
     first_line <- readLines(input$file$datapath, n = 1)
     separator <- ifelse(grepl(";", first_line), ";", ",")
     
-    # Läs in filen med rätt separator
     cc <- clean_names(read.csv(input$file$datapath, sep = separator))
     
-    # Konvertera semikolon till komma och ge notis om detta
     if (separator == ";") {
       showNotification("Semikolon (;) identifierat som separator. Filen konverteras till komma-separerat format.", type = "warning")
       write.csv(cc, input$file$datapath, row.names = FALSE)
     }
     
-    cc[is.na(cc$lane), "lane"] <- " " # Ersätt saknade lane-nummer med en tom sträng
+    cc[is.na(cc$lane), "lane"] <- " "
     cc
   })
   
@@ -61,9 +77,7 @@ server <- function(input, output) {
     sum(charToRaw(barcode1) != charToRaw(barcode2))
   }
   
-  # Function to check if sample names meet Illumina's requirements
   check_sample_name <- function(sample_name, index, index2, lane, df) {
-    # Check for duplicate sample names within the same lane but different indices
     duplicates <- df %>%
       filter(sample_name == !!sample_name, lane == !!lane) %>%
       mutate(index_combo = paste(index, index2, sep = "_"))
@@ -79,13 +93,11 @@ server <- function(input, output) {
     }
   }
   
-  # Function to check if index only contains A, C, G, T, or N
   check_valid_index <- function(index) {
     if (is.na(index)) return(TRUE)
     return(grepl("^[ACGTN]*$", index))
   }
   
-  # Function to find the most similar barcodes and their Hamming distances within the same lane
   find_most_similar_barcodes <- function(df) {
     df <- df %>%
       mutate(
@@ -98,7 +110,6 @@ server <- function(input, output) {
         Index2_Valid = NA
       )
     
-    # Iterate over each row to compare within the same lane
     for (i in 1:nrow(df)) {
       barcode1_index <- as.character(df$index[i])
       barcode1_index2 <- as.character(df$index2[i])
@@ -108,15 +119,11 @@ server <- function(input, output) {
       df$Hamming_Distance_Index2[i] <- 10000
       df$Hamming_Distance_index[i] <- 10000
       
-      # Update Sample_Name_Check column
       df$Sample_Name_Check[i] <- check_sample_name(sample_name1, barcode1_index, barcode1_index2, lane1, df)
-      
-      # Check if index and index2 contain only valid characters
       df$Index_Valid[i] <- ifelse(check_valid_index(barcode1_index), "Valid", "Invalid")
       df$Index2_Valid[i] <- ifelse(check_valid_index(barcode1_index2), "Valid", "Invalid")
       
       for (j in 1:nrow(df)) {
-        # Only compare samples within the same lane
         if (i != j && df$lane[j] == lane1) {
           barcode2_index <- as.character(df$index[j])
           barcode2_index2 <- as.character(df$index2[j])
@@ -142,7 +149,34 @@ server <- function(input, output) {
     df
   }
   
-  # Display the contents of the CSV file with conditional formatting
+  generate_heatmap <- function(barcodes) {
+    n <- length(barcodes)
+    dist_matrix <- matrix(NA, nrow = n, ncol = n)
+    
+    for (i in 1:n) {
+      for (j in 1:n) {
+        dist_matrix[i, j] <- compute_hamming_distance(barcodes[i], barcodes[j])
+      }
+    }
+    
+    colnames(dist_matrix) <- barcodes
+    rownames(dist_matrix) <- barcodes
+    
+    melted <- melt(dist_matrix)
+    names(melted) <- c("Var1", "Var2", "Distance")
+    
+    ggplot(melted, aes(x = Var1, y = Var2, fill = Distance)) +
+      geom_tile() +
+      scale_fill_gradientn(
+        colors = c("darkred", "red", "orange", "yellow", "green"),
+        values = scales::rescale(0:8),
+        breaks = 0:8, name = "Distance"
+      ) +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1),
+            axis.title = element_blank())
+  }
+  
   output$contents <- renderDT({
     req(data())
     df <- find_most_similar_barcodes(data())
@@ -169,16 +203,33 @@ server <- function(input, output) {
       )
   })
   
-  # Allow the user to download the processed CSV
+  output$heatmap_index <- renderPlot({
+    req(data())
+    df <- data()
+    barcodes <- df$index[!is.na(df$index) & grepl("^[ACGTN]+$", df$index)]
+    barcodes <- unique(barcodes)
+    if (length(barcodes) >= 2) generate_heatmap(barcodes)
+  })
+  
+  output$heatmap_index2 <- renderPlot({
+    req(data())
+    df <- data()
+    barcodes <- df$index2[!is.na(df$index2) & grepl("^[ACGTN]+$", df$index2)]
+    barcodes <- unique(barcodes)
+    if (length(barcodes) >= 2) generate_heatmap(barcodes)
+  })
+  
   output$downloadData <- downloadHandler(
     filename = function() {
       paste("Processed_", input$file$name, sep = "")
     },
     content = function(file) {
-      write.csv(find_most_similar_barcodes(data()) %>% select(lane,sample_name,project_id,index,index2), file, row.names = FALSE)
+      write.csv(find_most_similar_barcodes(data()) %>% select(lane, sample_name, project_id, index, index2), file, row.names = FALSE)
     }
   )
 }
 
-# Run the application 
+# Run the app
 shinyApp(ui = ui, server = server)
+
+
