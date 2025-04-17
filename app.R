@@ -4,12 +4,6 @@ library(dplyr)
 library(stringdist)
 library(DT)
 library(janitor)
-# Load necessary libraries
-library(shiny)
-library(dplyr)
-library(stringdist)
-library(DT)
-library(janitor)
 library(ggplot2)
 library(reshape2)
 
