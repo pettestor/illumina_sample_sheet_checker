@@ -25,7 +25,7 @@ ui <- fluidPage(
         tags$li("index2: The second index (barcode), if available.")
       ),
       p("The file should be comma-separated and include a header row."),
-      p("Last update to this app: 2024-09-26")
+      p("Last update to this app: 2025-09-09")
     ),
     
     mainPanel(
@@ -174,7 +174,7 @@ server <- function(input, output) {
   output$contents <- renderDT({
     req(data())
     df <- find_most_similar_barcodes(data())
-    datatable(df, options = list(pageLength = 100)) %>%
+    datatable(df, options = list(pageLength = 500)) %>%
       formatStyle(
         'Hamming_Distance_index',
         backgroundColor = styleInterval(c(1, 2, 3), c('red', 'orange', 'yellow', 'white'))
