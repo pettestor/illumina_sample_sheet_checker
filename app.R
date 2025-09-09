@@ -177,15 +177,18 @@ server <- function(input, output) {
     datatable(df, options = list(pageLength = 100)) %>%
       formatStyle(
         'Hamming_Distance_index',
-        backgroundColor = styleInterval(c(2, 3), c('red', 'yellow', 'white'))
+        backgroundColor = styleInterval(c(1, 2, 3), c('red', 'orange', 'yellow', 'white'))
       ) %>%
       formatStyle(
         'Hamming_Distance_Index2',
-        backgroundColor = styleEqual(c(NA, 2, 3), c('white', 'red', 'yellow'))
+        backgroundColor = styleInterval(c(1, 2, 3), c('red', 'orange', 'yellow', 'white'))
       ) %>%
       formatStyle(
         'Sample_Name_Check',
-        backgroundColor = styleEqual(c("OK", "Sample name exceeds 64 characters.", "Sample name does not meet Illumina's requirements."), c('green', 'yellow', 'yellow'))
+        backgroundColor = styleEqual(
+          c("OK", "Sample name exceeds 64 characters.", "Sample name does not meet Illumina's requirements."),
+          c('green', 'yellow', 'yellow')
+        )
       ) %>%
       formatStyle(
         'Index_Valid',
